@@ -14,7 +14,7 @@
 #define FuncPollInt_h_
 
 //extern pwm_config cfg;
-void init_pwm(pwm_config *);
+void init_pwm(pwm_config *, pwm_config *);
 void measure_duty_cycle(uint,uint32_t *);
 void PWM_config_alarm();
 #endif

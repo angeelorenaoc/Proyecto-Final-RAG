@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include "main.h"
 
-uint32_t slice_num = 0;
+uint32_t slice_num = 0 ;
 uint32_t dutymask = 0;
 uint32_t measured_duty_cycle = 0 ;
 absolute_time_t now, target;
 const uint alarm1 = 1;
+uint32_t mask_motor = 0x7 << 10;
 
 void alarm_duty(uint alarm){
     // Calcula el duty de la seañl cada 10ms
@@ -19,7 +20,10 @@ int main() {
 #warning dma/control_blocks example requires a UART
 #else
     stdio_init_all();
+    sleep_ms(4000);
     gpio_init(MEASURE_PIN);
+    gpio_init_mask(mask_motor | (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
+    gpio_set_dir_out_masked(mask_motor| (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
 
     //------------------------------------ UART------------------------------------ 
     uart_init(UART_ID, BAUD_RATE);
@@ -53,12 +57,45 @@ int main() {
     hardware_alarm_set_callback(alarm1, &alarm_duty);
 
     //Inicialización del PWM
-    pwm_config cfg;
-    init_pwm(&cfg);
+    //init_pwm(&cfg1, &cfg2);
+    cfg1 = pwm_get_default_config();
+    pwm_config_set_clkdiv_mode(&cfg1, PWM_DIV_B_HIGH);
+    pwm_config_set_clkdiv(&cfg1, 50);
+
+    // Enable PWM
+    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
+    // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
+    uint sliceNum = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);
+    // Set period for frequency divisor
+    pwm_set_clkdiv_int_frac(sliceNum, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
+    // Set top (wrap) value (Determines the frequency)
+    pwm_set_wrap(sliceNum, PWM_TOP_VALUE);
+    // Set zero duty
+    pwm_set_chan_level(sliceNum, PWM_CHA, PWM_DUTY_ZERO);
+    // Enable PWM
+    pwm_set_enabled(sliceNum, true); 
+    /*cfg2 = pwm_get_default_config(); 
+    pwm_config_set_clkdiv(&cfg2, 10);
+    pwm_config_set_wrap(&cfg2, 1e3);
+    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
+    uint32_t slice_num_motor = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);
+    pwm_set_chan_level(slice_num_motor, PWM_CHA, PWM_DUTY_ZERO);
+    pwm_init(slice_num_motor, &cfg2, true);**/
+
+    //PWM del motor
+    //init_pwm(&cfg, &cfg1);
+    /*pwm_init(slice_num_motor, &cfg1, true);
+    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
+    slice_num_motor = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);*/
 
     //Inicia en el estado de Reset
     Flags.WORD = 1;
-    sleep_ms(2000);
+    while (1)
+    {
+        Move();
+        sleep_ms(5000);
+    }
+    
 
     while (true)
     {
@@ -70,7 +107,7 @@ int main() {
             break;
         case 12:
             //Pasar a .h
-            pwm_init(slice_num, &cfg, false);
+            pwm_init(slice_num, &cfg1, false);
             //CONFIGURACIÓN ALARMA 10MS
             gpio_set_function(MEASURE_PIN, GPIO_FUNC_PWM);
             now = get_absolute_time();
@@ -144,22 +181,36 @@ inline void Triangulación(){
     for (uint8_t i = 0; i < sizeof(UB); i++)
     {
         if((Balizas[i].BITS.RSSI) > Umbral){
+            printf("Baliza: %x \n", Balizas[i].WORD);
+            if(Balizas[i].BITS.NI>47){
             pos_act = Balizas[i].BITS.NI;
+            printf("La pos despues de la triangulacion es: %d \n", pos_act);
+            }   
         }
     }    
 }
 
 inline void Move(){
+    //Pin 10: Enable
+    //Pin 11 : Salida A
+    //Pin 12 : Salida B
+    printf("La pos actual y obj son: %d, %d \n", pos_act, pos_obj);
     if (pos_act > pos_obj)
     {
+        //pwm_set_enabled(slice_num_motor, true);
+        gpio_put_masked(mask_motor, mask_motor & (0x1 << 11));
         printf("Ir hacia atrás \n");
     }
     else if (pos_act < pos_obj)
     {
+        //pwm_set_enabled(slice_num_motor, true);
+        gpio_put_masked(mask_motor, mask_motor & (0x1 << 12));
         printf("Ir hacia adelante \n");
     }
     else{
-     printf("Quieto \n");   
+        //pwm_set_enabled(slice_num_motor, false);
+        gpio_put_masked(mask_motor, 0x0);
+        printf("Quieto \n");  
     } 
 }
 
@@ -172,7 +223,7 @@ void Reset(){
     CR = 0;
     Flags.WORD = 2;
     Baliza = 0;
-    //printf("El comando ha sido enviado \n");
+    printf("El comando ha sido enviado \n");
 }
 
 void Fin_Trama(){// Hacer aquí la triangulación
