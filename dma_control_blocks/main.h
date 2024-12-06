@@ -27,14 +27,23 @@
 #define ADC_MIN_READVALUE   30
 
 //BALIZAS
-#define N_BALIZAS 1
+#define N_BALIZAS 2
 #define N_CRpb N_BALIZAS*10
 #define N_OK 2
 
 #define MEASURE_PIN 3
 #define COUNT_MEASURE_TIME 10
 
-#define Umbral 990
+//Motor
+#define PIN_PWM_ENABLE 10
+#define PWM_CHA             0
+#define PWM_DIV_INTEGER     128
+#define PWM_DIV_FRAC        0
+#define PWM_TOP_VALUE       4095
+#define PWM_DUTY_ZERO       2482
+
+
+#define Umbral 990U
 
 /// ---------------- Variables ---------------- ///
 //BUFFERS
@@ -81,9 +90,11 @@ char response[3];
 
 // TRIANGULACIÓN
 uint8_t state = 0;
-uint8_t pos_act, pos_obj = '0';
+uint8_t pos_act = '0', pos_obj = '1';
 
 char UB[4] = {'0', '1', '2','3'};; //Ubicación de las balizas 
+
+pwm_config cfg1, cfg2;
 
 /// ---------------- Prototipos de funciones ---------------- ///
 void Capture();
