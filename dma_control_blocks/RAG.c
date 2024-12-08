@@ -4,15 +4,52 @@
 uint32_t slice_num = 0 ;
 uint32_t dutymask = 0;
 uint32_t measured_duty_cycle = 0 ;
-absolute_time_t now, target;
-const uint alarm1 = 1;
-uint32_t mask_motor = 0x7 << 10;
+absolute_time_t now, target, now_w, target_w;
+const uint alarm1 = 1, watchdog_XBEE = 2;
+uint32_t mask_motor = 0xF << 10;
+const uint32_t gpio_linea = 0x3;
+bool band_right = false;
+bool band_left = false;
+uint32_t pwm_level = 0;
+uint32_t pwm_level_right = 1700;
+uint32_t pwm_level_left = 1700;
+uint sliceNumMotorA = 0, sliceNumMotorB = 0;
+
+void corregir_mov(uint gpio, uint32_t events) {
+    printf("El gpio que genera la interrupcion es: %d, y la mascara es: %x \n", gpio, events);
+    if(events != GPIO_IRQ_EDGE_FALL){
+
+        switch (gpio)
+        {
+        case 0:
+            printf("IZQUIERDA ..............\n");
+            band_left = true;
+            break;
+        case 1:
+            printf("DERECHA ..............\n");
+            band_right = true;
+            break;    
+        default:
+            break;
+        }
+    }
+    gpio_acknowledge_irq(gpio, events);
+}
 
 void alarm_duty(uint alarm){
     // Calcula el duty de la seañl cada 10ms
     measure_duty_cycle(slice_num,&Balizas[Baliza-1].WORD);
     Flags.BITS.Capture_ADC = 0;
     printf("CAPTURANDO RSSI: %d, CR: %d\n", Balizas[Baliza-1].BITS.RSSI, CR);
+}
+void watchdog_irq(uint alarm){
+    if(!Flags.BITS.Capture){
+        now_w = get_absolute_time();
+        target_w = delayed_by_ms(now, WATCHDOG_TIME);
+        hardware_alarm_set_target(watchdog_XBEE, target_w);
+        printf("Reenviando\n");
+    }
+
 }
 
 int main() {
@@ -21,9 +58,13 @@ int main() {
 #else
     stdio_init_all();
     sleep_ms(4000);
+
     gpio_init(MEASURE_PIN);
-    gpio_init_mask(mask_motor | (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
-    gpio_set_dir_out_masked(mask_motor| (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
+    gpio_init_mask(mask_motor | (1<<MEASURE_PIN)| gpio_linea);
+    gpio_set_dir_out_masked(mask_motor | (1<<MEASURE_PIN)| (1<<RESET_XBEE_PIN));
+
+    gpio_set_irq_enabled_with_callback(0, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true, &corregir_mov);
+    gpio_set_irq_enabled_with_callback(1, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true, &corregir_mov);
 
     //------------------------------------ UART------------------------------------ 
     uart_init(UART_ID, BAUD_RATE);
@@ -63,40 +104,62 @@ int main() {
     pwm_config_set_clkdiv(&cfg1, 50);
 
     // Enable PWM
-    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
+    gpio_set_function(PIN_PWM_ENABLEA, GPIO_FUNC_PWM);
     // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
-    uint sliceNum = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);
+    sliceNumMotorA = pwm_gpio_to_slice_num(PIN_PWM_ENABLEA);
     // Set period for frequency divisor
-    pwm_set_clkdiv_int_frac(sliceNum, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
+    pwm_set_clkdiv_int_frac(sliceNumMotorA, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
     // Set top (wrap) value (Determines the frequency)
-    pwm_set_wrap(sliceNum, PWM_TOP_VALUE);
+    pwm_set_wrap(sliceNumMotorA, PWM_TOP_VALUE);
     // Set zero duty
-    pwm_set_chan_level(sliceNum, PWM_CHA, PWM_DUTY_ZERO);
+    pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
     // Enable PWM
-    pwm_set_enabled(sliceNum, true); 
-    /*cfg2 = pwm_get_default_config(); 
-    pwm_config_set_clkdiv(&cfg2, 10);
-    pwm_config_set_wrap(&cfg2, 1e3);
-    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
-    uint32_t slice_num_motor = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);
-    pwm_set_chan_level(slice_num_motor, PWM_CHA, PWM_DUTY_ZERO);
-    pwm_init(slice_num_motor, &cfg2, true);**/
-
-    //PWM del motor
-    //init_pwm(&cfg, &cfg1);
-    /*pwm_init(slice_num_motor, &cfg1, true);
-    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
-    slice_num_motor = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);*/
+    pwm_set_enabled(sliceNumMotorA, true); 
+    
+    //SERVO
+    gpio_set_function(PIN_PWM_ENABLEB, GPIO_FUNC_PWM);
+    // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
+    sliceNumMotorB = pwm_gpio_to_slice_num(PIN_PWM_ENABLEB);
+    // Set period for frequency divisor
+    pwm_set_clkdiv_int_frac(sliceNumMotorB, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
+    // Set top (wrap) value (Determines the frequency)
+    pwm_set_wrap(sliceNumMotorB, PWM_TOP_VALUE);
+    // Set zero duty
+    pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
+    // Enable PWM
+    pwm_set_enabled(sliceNumMotorB, true); 
 
     //Inicia en el estado de Reset
     Flags.WORD = 1;
+
+    Move();
     while (1)
     {
-        Move();
-        sleep_ms(5000);
+        if(!gpio_get(1) && !gpio_get(0)){
+            printf("Va derecho.........\n");
+            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
+            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
+        }
+
+        else if (band_right)
+        {    
+            printf("Corrige derecha................. \n");
+            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level_right);
+            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level);
+            band_right = false;
+        }
+        else if (band_left)
+        {
+            printf("Corrige izquierda................. \n");
+            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level_left);
+            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level);
+            band_left = false;
+        }
+        
+        __wfi();     
+        //sleep_ms(1000);
     }
     
-
     while (true)
     {
         switch (Flags.WORD)
@@ -165,6 +228,7 @@ void Capture(){
     }
     if(count == N_OK && Flags.BITS.OK){
         //Final del OK recibido
+
         Flags.BITS.Capture = 1;
         Flags.BITS.OK = 0;
         count = 0;
@@ -194,23 +258,25 @@ inline void Move(){
     //Pin 10: Enable
     //Pin 11 : Salida A
     //Pin 12 : Salida B
-    printf("La pos actual y obj son: %d, %d \n", pos_act, pos_obj);
+    //printf("La pos actual y obj son: %d, %d \n", pos_act, pos_obj);
+    pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
+    pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
     if (pos_act > pos_obj)
     {
         //pwm_set_enabled(slice_num_motor, true);
-        gpio_put_masked(mask_motor, mask_motor & (0x1 << 11));
-        printf("Ir hacia atrás \n");
+        gpio_put_masked(mask_motor & (0x5 << 11), mask_motor & (0x1 << 11));
+        printf("Ir hacia atrás \n, y la mascara es: %x, y el valor es: %x \n", mask_motor & (0x5 << 11), mask_motor & (0x1 << 11));
     }
     else if (pos_act < pos_obj)
     {
         //pwm_set_enabled(slice_num_motor, true);
-        gpio_put_masked(mask_motor, mask_motor & (0x1 << 12));
-        printf("Ir hacia adelante \n");
+        gpio_put_masked(mask_motor & (0x5 << 11), mask_motor & (0x1 << 13));
+        printf("Ir hacia adelante \n, y la mascara es: %x, y el valor es: %x \n", mask_motor & (0x5 << 11), mask_motor & (0x1 << 13));
     }
     else{
         //pwm_set_enabled(slice_num_motor, false);
-        gpio_put_masked(mask_motor, 0x0);
-        printf("Quieto \n");  
+        gpio_put_masked(mask_motor & (0x5 << 11), 0x0);
+        printf("Quieto \n"); 
     } 
 }
 

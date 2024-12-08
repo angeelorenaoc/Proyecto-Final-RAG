@@ -1,30 +1,48 @@
-
-#include "pico/stdlib.h"
-#include "hardware/dma.h"
-#include "hardware/structs/uart.h"
-#include "hardware/uart.h"
-#include "hardware/sync.h"
-#include "hardware/adc.h"
-#include "hardware/gpio.h"
+#include "menus.h"
 #include "PWM_measure.h"
 
+#ifndef MAIN_H_
+#define MAIN_H_
+//Macros
+#define SDA_PIN 4
+#define SCL_PIN 5
+#define RESET_PIN -1
+int rc;
 
+static uint8_t ucBuffer[1024];
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+#define TIME_DEBOUNCE 100
+#define TIME_TEXT     5000
+#define TIME_FIN     1000
+
+//Botones
+#define mask_boton 0x1F << 20 //Son 5 botones
+state_menu menu;
+opcion_t  opcion;
+flags_t   Flags1;
+
+//Pantalla
+SSOLED oled;
+
+//PROTOTIPOS
+void initUHD(SSOLED *, state_menu *, uint8_t);
+void Info_Place(opcion_t *);
+
+/*------------------ DMA_CONTROL ----------------------*/
 /// ---------------- Macros ---------------- ///
 #define UART_ID uart1
 #define BAUD_RATE 4800
-
-// We are using pins 0 and 1, but see the GPIO function select table in the
-// datasheet for information on which other pins can be used.
-//UART
 #define RESET_XBEE_PIN 7
-
 #define UART_TX_PIN 8
 #define UART_RX_PIN 9
 #define DATA_BITS 8
 #define STOP_BITS 1
 #define PARITY    UART_PARITY_NONE
-
-
+//ADC
+#define ADC_GPIO_CH0        26
+#define ADC_CH0             0
+#define ADC_MIN_READVALUE   30
 //BALIZAS
 #define WATCHDOG_TIME 2000
 
@@ -32,20 +50,16 @@
 #define N_CRpb N_BALIZAS*10
 #define N_OK 2
 
-#define MEASURE_PIN 3
+#define MEASURE_PIN 3>
 #define COUNT_MEASURE_TIME 10
 
 //Motor
-#define DIGITAL1 6
-#define DIGITAL2 7
-#define PIN_PWM_ENABLEA 12
-#define PIN_PWM_ENABLEB 10
+#define PIN_PWM_ENABLE 10
 #define PWM_CHA             0
 #define PWM_DIV_INTEGER     128
 #define PWM_DIV_FRAC        0
 #define PWM_TOP_VALUE       4095
-#define PWM_DUTY_ZERO       1000
-
+#define PWM_DUTY_ZERO       2000
 
 #define Umbral 990U
 
@@ -73,6 +87,7 @@ typedef union{
         uint8_t Capture :     1; //Captura la trama4
         uint8_t Capture_ADC : 1; //Captura valor del ADC8
         uint8_t EndMsg      : 1; // Bandera de finalización de trama16
+        uint8_t Llego       : 1; //Indica cuando llega a la pos objetivo
     }BITS;    
 }state_flags;
 
@@ -106,3 +121,4 @@ void Reset();
 void Fin_Trama();
 void Triangulación();
 void Move();
+#endif
