@@ -3,7 +3,6 @@
 #include "pico/stdlib.h"
 #include "hardware/timer.h"
 #include "ss_oled.h"
-#include "UHD_1.h"
 #include "hardware/pwm.h"
 #include "pico/stdlib.h"
 #include "hardware/structs/uart.h"
@@ -25,6 +24,7 @@ typedef union{
         uint8_t Menu1     :1; //Muestra las opciones de los lugares, solo se habilitan las interrupciones en este punto
         uint8_t Show_Info :1;  //Muestra info del lugar
         uint8_t End       :1;  //Despedida 
+        uint8_t Show_Info2:1;
     }BITS;      
 }state_menu;
 

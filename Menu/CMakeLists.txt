@@ -54,6 +54,7 @@ add_executable(
         ss_oled.c
         BitBang_I2C.c
         menus.c
+        PWM_measure.c
 )
 
 # pull in common dependencies and additional i2c hardware support

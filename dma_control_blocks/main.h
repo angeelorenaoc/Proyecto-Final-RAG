@@ -8,6 +8,7 @@
 #include "hardware/gpio.h"
 #include "PWM_measure.h"
 
+
 /// ---------------- Macros ---------------- ///
 #define UART_ID uart1
 #define BAUD_RATE 4800
@@ -15,18 +16,18 @@
 // We are using pins 0 and 1, but see the GPIO function select table in the
 // datasheet for information on which other pins can be used.
 //UART
+#define RESET_XBEE_PIN 7
+
 #define UART_TX_PIN 8
 #define UART_RX_PIN 9
 #define DATA_BITS 8
 #define STOP_BITS 1
 #define PARITY    UART_PARITY_NONE
 
-//ADC
-#define ADC_GPIO_CH0        26
-#define ADC_CH0             0
-#define ADC_MIN_READVALUE   30
 
 //BALIZAS
+#define WATCHDOG_TIME 2000
+
 #define N_BALIZAS 2
 #define N_CRpb N_BALIZAS*10
 #define N_OK 2
@@ -35,12 +36,15 @@
 #define COUNT_MEASURE_TIME 10
 
 //Motor
-#define PIN_PWM_ENABLE 10
+#define DIGITAL1 6
+#define DIGITAL2 7
+#define PIN_PWM_ENABLEA 12
+#define PIN_PWM_ENABLEB 10
 #define PWM_CHA             0
 #define PWM_DIV_INTEGER     128
 #define PWM_DIV_FRAC        0
 #define PWM_TOP_VALUE       4095
-#define PWM_DUTY_ZERO       2482
+#define PWM_DUTY_ZERO       1000
 
 
 #define Umbral 990U
