@@ -11,8 +11,8 @@ const uint32_t gpio_linea = 0x3;
 bool band_right = false;
 bool band_left = false;
 uint32_t pwm_level = 0;
-uint32_t pwm_level_right = 1700;
-uint32_t pwm_level_left = 1700;
+uint32_t pwm_level_right = 3000;
+uint32_t pwm_level_left = 3000;
 uint sliceNumMotorA = 0, sliceNumMotorB = 0;
 
 void corregir_mov(uint gpio, uint32_t events) {
@@ -144,15 +144,15 @@ int main() {
         else if (band_right)
         {    
             printf("Corrige derecha................. \n");
-            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level_right);
-            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level);
+            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level_right);
+            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level);
             band_right = false;
         }
         else if (band_left)
         {
             printf("Corrige izquierda................. \n");
-            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level_left);
-            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level);
+            pwm_set_chan_level(sliceNumMotorB, PWM_CHA, pwm_level_left);
+            pwm_set_chan_level(sliceNumMotorA, PWM_CHA, pwm_level);
             band_left = false;
         }
         

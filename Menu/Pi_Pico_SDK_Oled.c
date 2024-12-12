@@ -1,57 +1,110 @@
 #include "main.h"
 /*FALTA PROBAR*/
-absolute_time_t now, target, now1, target1;
-const uint alarm_menu = 1;
+absolute_time_t now, target, now1, target1, now_w, target_w;
 const uint alarm_text = 0;
+const uint alarm_menu = 1;
+const uint alarm_antena = 2;
 uint8_t count_page = 0;
-uint32_t gpio_interrup, mask_interrup;
+volatile uint32_t gpio_interrup, mask_interrup;
 
-/*OTRO CÓDIGO*/
 uint32_t slice_num = 0 ;
 uint32_t dutymask = 0;
-uint32_t measured_duty_cycle = 0 ;
-absolute_time_t now, target, now_w, target_w;
-const uint alarm_antena = 2;
-uint32_t mask_motor = 0x7 << 10;
 
+/* Fin de carrera*/
+uint32_t gpio_final_carrera = 0xf;
+uint32_t init_time, delta_time;
+
+/*LINEA*/
+const uint32_t mask_motor = 0xF << 10;
+const uint32_t gpio_linea = 0x3 << 6;
+const uint32_t gpio_boton = 0x1F << 18;
+bool band_right = false;
+bool band_left = false; 
+uint8_t verificacion = 0, pos_cand = 0; //Posición candidata para la triangulación 
+uint sliceNumMotorA = 0, sliceNumMotorB = 0;
+
+bt_data_t Datos;
+
+volatile uint32_t gpios;
 /*--------------------- ISR RAG --------------------------*/
 void alarm_duty(uint alarm){
     // Calcula el duty de la seañl cada 10ms
     measure_duty_cycle(slice_num,&Balizas[Baliza-1].WORD);
     Flags.BITS.Capture_ADC = 0;
-    //printf("CAPTURANDO RSSI: %d, CR: %d\n", Balizas[Baliza-1].BITS.RSSI, CR);
+    ////printf("CAPTURANDO RSSI: %d, CR: %d\n", Balizas[Baliza-1].BITS.RSSI, CR);
 }
-/*void watchdog_irq(uint alarm){
-    if(!Flags.BITS.Capture){
-        now_w = get_absolute_time();
-        target_w = delayed_by_ms(now, WATCHDOG_TIME);
-        hardware_alarm_set_target(watchdog_XBEE, target_w);
-        printf("Reenviando\n");
-    }
-}*/
+
 
 /*--------------------------- ISR MENU ---------------------------*/
 
-void start_alarm(uint gpio, uint32_t mask_event){//Antirrebote
-  //printf("---------------------- start alarm -------------------\n");
-  now = get_absolute_time();
-  target = delayed_by_ms(now, TIME_DEBOUNCE);
-  hardware_alarm_set_target(alarm_menu, target);
-  gpio_set_irq_enabled(16, GPIO_IRQ_EDGE_RISE, false);
-  gpio_set_irq_enabled(17, GPIO_IRQ_EDGE_RISE, false);
-  gpio_set_irq_enabled(18, GPIO_IRQ_EDGE_RISE, false);
-  gpio_set_irq_enabled(19, GPIO_IRQ_EDGE_RISE, false);
-  gpio_set_irq_enabled(20, GPIO_IRQ_EDGE_RISE, false);
-  gpio_interrup = gpio;
-  mask_interrup = mask_event;
-  gpio_acknowledge_irq(gpio_interrup,mask_interrup);//Probar
+void gpio_isr(uint gpio, uint32_t mask_event){//Antirrebote
+  gpios = gpio_get_all()&(3<<6|0xf);
+  ////printf("Entra a la IRQ, gpio: %x \n", gpio);
+  switch (gpios){
+    case 1://Fin de carrera 1
+      if(gpio_get(gpio)){
+        menu.BITS.choque = 1;
+      }
+      else{
+        menu.BITS.choque = 0;
+      }
+    break;
+    case 2://Fin de carrera 2
+      if(gpio_get(gpio)){
+      menu.BITS.choque = 1;
+      }
+      else{
+        menu.BITS.choque = 0;
+      }
+
+    break;
+    case 4://Fin de carrera 3
+      if(gpio_get(gpio)){
+      menu.BITS.choque = 1;
+      }
+      else{
+        menu.BITS.choque = 0;
+      }
+    break;
+    case 8://Fin de carrera 4
+      if(gpio_get(gpio)){
+      menu.BITS.choque = 1;
+      }
+      else{
+        menu.BITS.choque = 0;
+      }
+    break; 
+    case (1<<6):
+        ////printf("IZQUIERDA ..............\n");
+        band_left = true;
+        break;
+    case (1<<7):
+        ////printf("DERECHA ..............\n");
+        band_right = true;
+        break;    
+    default://Botones del menú
+      ////printf("Desahabilita la interrupcion............... \n");
+      now = get_absolute_time();
+      target = delayed_by_ms(now, TIME_DEBOUNCE);
+      hardware_alarm_set_target(alarm_menu, target);
+      gpio_set_irq_enabled(18, GPIO_IRQ_EDGE_RISE, false);
+      gpio_set_irq_enabled(19, GPIO_IRQ_EDGE_RISE, false);
+      gpio_set_irq_enabled(20, GPIO_IRQ_EDGE_RISE, false);
+      gpio_set_irq_enabled(21, GPIO_IRQ_EDGE_RISE, false);
+      gpio_set_irq_enabled(22, GPIO_IRQ_EDGE_RISE, false);
+      break;
+  }
+  //mask_interrup = mask_event;
+  //gpio_interrup = gpio;
+  gpio_acknowledge_irq(gpio_interrup,mask_interrup);
+  ////printf("---------------------- start alarm -------------------\n");
 }
 
 void delay_show(uint alarm){//Tiempo para el cambio de página
   if((menu.BITS.Show_Info2 && count_page < 4) || (menu.BITS.End && count_page < 5))
   {
-    printf("------Alarma del texto ----\n");
-    printf("pag: %d\n",count_page);
+    //printf("------Alarma del texto ----\n");
+    //printf("pag: %d\n",count_page);
     Flags1.BITS.CONFIG_ALARM = 1;
   } 
   else{
@@ -61,11 +114,11 @@ void delay_show(uint alarm){//Tiempo para el cambio de página
 }
 
 void eleccion(uint alarm1){//Botones
-  //printf("Entra a la interrupcion, gpio: %x \n", gpio_interrup);
-  gpio_set_irq_enabled_with_callback(16, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-    switch (gpio_interrup)
+  gpios = (gpio_get_all()>>18) & 0x1f;
+  //printf("Entra a la interrupcion, gpio: %x \ngpios: %x\nmenu: %x\n", gpio_interrup,gpios, menu.WORD);
+    switch (gpios)
     {
-    case 16: //Rojo
+    case 1: //Rojo
       switch (menu.WORD) //Opciones de pagina
       {
       case 1: //Pasar al menú de opciones
@@ -92,85 +145,116 @@ void eleccion(uint alarm1){//Botones
       }
       break;
 
-    case 17: //1
+    case 2: //1
       menu.BITS.Menu1 = 0;
       menu.BITS.Show_Info = 1;
       opcion.WORD = 0;
       opcion.BITS.LED = 1;
       Flags.BITS.Reset = 1;
       oledWriteString(&oled, 0,0,0,(char *)"Moviendome",FONT_8x8,0,1);
+      gpio_set_irq_enabled(6, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      gpio_set_irq_enabled(7, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      pos_obj = '0';
       //Flags1.BITS.CONFIG_ALARM = 1;
       break;
 
-    case 18: //2
+    case 4: //2
       menu.BITS.Menu1 = 0;
       menu.BITS.Show_Info = 1;
       opcion.WORD = 0;
       opcion.BITS.GITA = 1;
       Flags.BITS.Reset = 1;
       oledWriteString(&oled, 0,0,0,(char *)"Moviendome",FONT_8x8,0,1);
+      gpio_set_irq_enabled(6, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      gpio_set_irq_enabled(7, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      pos_obj = '1';
       //Flags1.BITS.CONFIG_ALARM = 1;
       break;
 
-    case 19: //3
+    case 8: //3
       menu.BITS.Menu1 = 0;
       menu.BITS.Show_Info = 1;
       opcion.WORD = 0;
       opcion.BITS.LEB = 1;
       Flags.BITS.Reset = 1;
       oledWriteString(&oled, 0,0,0,(char *)"Moviendome",FONT_8x8,0,1);
+      gpio_set_irq_enabled(6, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      gpio_set_irq_enabled(7, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      pos_obj = '2';
       //Flags1.BITS.CONFIG_ALARM = 1;
       break;
 
-    case 20: //4
+    case 16: //4
       menu.BITS.Menu1 = 0;
       menu.BITS.Show_Info = 1;
       opcion.WORD = 0;
       opcion.BITS.LTS = 1;
       Flags.BITS.Reset = 1;
       oledWriteString(&oled, 0,0,0,(char *)"Moviendome",FONT_8x8,0,1);
+      gpio_set_irq_enabled(6, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      gpio_set_irq_enabled(7, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, true);
+      pos_obj = '3';
       //Flags1.BITS.CONFIG_ALARM = 1;
       break;
 
     default:
       break;
     }
-    if(gpio_interrup!=16){
-        gpio_set_irq_enabled(17, GPIO_IRQ_EDGE_RISE, false);
-        gpio_set_irq_enabled(18, GPIO_IRQ_EDGE_RISE, false);
+    if(gpios&0x1e){
         gpio_set_irq_enabled(19, GPIO_IRQ_EDGE_RISE, false);
         gpio_set_irq_enabled(20, GPIO_IRQ_EDGE_RISE, false);
+        gpio_set_irq_enabled(21, GPIO_IRQ_EDGE_RISE, false);
+        gpio_set_irq_enabled(22, GPIO_IRQ_EDGE_RISE, false);
     }
+    gpio_set_irq_enabled(18, GPIO_IRQ_EDGE_RISE, true);
 }
 
 int main() {
   stdio_init_all();
   sleep_ms(4000);
 
-  printf("Iniciando \n");
+  //printf("Iniciando \n");
   //Configuración de los pines
-  gpio_init_mask(mask_boton|MEASURE_PIN);
-  gpio_init_mask(mask_motor | (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
-  gpio_set_dir_out_masked(mask_motor| (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN)| (1<<RESET_XBEE_PIN));
+  gpio_init_mask(mask_motor | (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN) | gpio_final_carrera | gpio_linea | gpio_boton);
 
+  gpio_set_dir_out_masked(mask_motor| (1<<PIN_PWM_ENABLE) | (1<<MEASURE_PIN));
 
-  gpio_pull_down(16);
-  gpio_pull_down(17);
+  gpio_pull_down(0);
+  gpio_pull_down(1);
+  gpio_pull_down(2);
+  gpio_pull_down(3);
   gpio_pull_down(18);
   gpio_pull_down(19);
   gpio_pull_down(20);
+  gpio_pull_down(21);
+  gpio_pull_down(22);
 
-  gpio_set_input_hysteresis_enabled(16,true);
-  gpio_set_input_hysteresis_enabled(17,true);
+  gpio_set_input_hysteresis_enabled(0, true);
+  gpio_set_input_hysteresis_enabled(1, true);
+  gpio_set_input_hysteresis_enabled(2, true);
+  gpio_set_input_hysteresis_enabled(3, true);
   gpio_set_input_hysteresis_enabled(18,true);
   gpio_set_input_hysteresis_enabled(19,true);
   gpio_set_input_hysteresis_enabled(20,true);
+  gpio_set_input_hysteresis_enabled(21,true);
+  gpio_set_input_hysteresis_enabled(22,true);
 
-  gpio_set_irq_enabled_with_callback(16, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-  gpio_set_irq_enabled_with_callback(17, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-  gpio_set_irq_enabled_with_callback(18, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-  gpio_set_irq_enabled_with_callback(19, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-  gpio_set_irq_enabled_with_callback(20, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
+  /*-------------------------------------- FINAL DE CARRERA --------------------------------------*/
+  gpio_set_irq_enabled_with_callback(0, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(1, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(2, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(3, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+
+  /*-------------------------------------- SENSOR DE LINEA --------------------------------------*/
+  gpio_set_irq_enabled_with_callback(6, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(7, GPIO_IRQ_EDGE_RISE|GPIO_IRQ_EDGE_FALL, false, &gpio_isr);
+
+  /*-------------------------------------- BOTONES --------------------------------------*/
+  gpio_set_irq_enabled_with_callback(18, GPIO_IRQ_EDGE_RISE, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(19, GPIO_IRQ_EDGE_RISE, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(20, GPIO_IRQ_EDGE_RISE, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(21, GPIO_IRQ_EDGE_RISE, false, &gpio_isr);
+  gpio_set_irq_enabled_with_callback(22, GPIO_IRQ_EDGE_RISE, false, &gpio_isr);
 
   //Configuración de las alarmas
   //Alarma para el menu
@@ -181,100 +265,150 @@ int main() {
   hardware_alarm_set_callback(alarm_text, &delay_show);
 
   //------------------------------------ UART------------------------------------ 
-    uart_init(UART_ID, BAUD_RATE);
+  uart_init(UART_ID, BAUD_RATE);
 
-    // Set the TX and RX pins by using the function select on the GPIO
-    // Set datasheet for more information on function select
-    gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
-    gpio_set_function(UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_RX_PIN));
+  // Set the TX and RX pins by using the function select on the GPIO
+  // Set datasheet for more information on function select
+  gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
+  gpio_set_function(UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_RX_PIN));
 
-    int __unused actual = uart_set_baudrate(UART_ID, BAUD_RATE);
+  gpio_set_function(MEASURE_PIN, GPIO_FUNC_PWM);
+  int __unused actual = uart_set_baudrate(UART_ID, BAUD_RATE);
 
-    // Set UART flow control CTS/RTS, we don't want these, so turn them off
-    uart_set_hw_flow(UART_ID, false, false);
+  // Set UART flow control CTS/RTS, we don't want these, so turn them off
+  uart_set_hw_flow(UART_ID, false, false);
 
-    // Set our data format
-    uart_set_format(UART_ID, DATA_BITS, STOP_BITS, PARITY);
+  // Set our data format
+  uart_set_format(UART_ID, DATA_BITS, STOP_BITS, PARITY);
 
-    uart_set_fifo_enabled(UART_ID, true);
-    
-    // Select correct interrupt for the UART we are using
-    int UART_IRQ = UART_ID == uart0 ? UART0_IRQ : UART1_IRQ;
-     // And set up and enable the interrupt handlers
-    irq_set_exclusive_handler(UART_IRQ, Capture);
-    irq_set_enabled(UART_IRQ, true);
+  uart_set_fifo_enabled(UART_ID, true);
+  
+  // Select correct interrupt for the UART we are using
+  int UART_IRQ = UART_ID == uart0 ? UART0_IRQ : UART1_IRQ;
+    // And set up and enable the interrupt handlers
+  irq_set_exclusive_handler(UART_IRQ, Capture);
+  irq_set_enabled(UART_IRQ, true);
 
-    // Now enable the UART to send interrupts - RX only
-    uart_set_irq_enables(UART_ID, true, false);
+  // Now enable the UART to send interrupts - RX only
+  uart_set_irq_enables(UART_ID, true, false);
 
-    //Inicialización del PWM
-    //init_pwm(&cfg1, &cfg2);
-    cfg1 = pwm_get_default_config();
-    pwm_config_set_clkdiv_mode(&cfg1, PWM_DIV_B_HIGH);
-    pwm_config_set_clkdiv(&cfg1, 50);
+  //Inicialización de PWMs
+  //init_pwm(&cfg1, &cfg2);
+  cfg1 = pwm_get_default_config();
+  pwm_config_set_clkdiv_mode(&cfg1, PWM_DIV_B_HIGH);
+  pwm_config_set_clkdiv(&cfg1, 50);
 
-    // Enable PWM
-    gpio_set_function(PIN_PWM_ENABLE, GPIO_FUNC_PWM);
-    // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
-    uint sliceNum = pwm_gpio_to_slice_num(PIN_PWM_ENABLE);
-    // Set period for frequency divisor
-    pwm_set_clkdiv_int_frac(sliceNum, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
-    // Set top (wrap) value (Determines the frequency)
-    pwm_set_wrap(sliceNum, PWM_TOP_VALUE);
-    // Set zero duty
-    pwm_set_chan_level(sliceNum, PWM_CHA, PWM_DUTY_ZERO);
-    // Enable PWM
-    pwm_set_enabled(sliceNum, true);
+  // ENABLE PWM MOTOR A
+  gpio_set_function(PIN_PWM_ENABLEA, GPIO_FUNC_PWM);
+  // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
+  sliceNumMotorA = pwm_gpio_to_slice_num(PIN_PWM_ENABLEA);
+  // Set period for frequency divisor
+  pwm_set_clkdiv_int_frac(sliceNumMotorA, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
+  // Set top (wrap) value (Determines the frequency)
+  pwm_set_wrap(sliceNumMotorA, PWM_TOP_VALUE);
+  // Set zero duty
+  pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
+  // Enable PWM
+  pwm_set_enabled(sliceNumMotorA, true); 
+  
+  //Motor B
+  gpio_set_function(PIN_PWM_ENABLEB, GPIO_FUNC_PWM);
+  // Determine the PWM slice connected to GPIO: PWM_GPIO_CHA
+  sliceNumMotorB = pwm_gpio_to_slice_num(PIN_PWM_ENABLEB);
+  // Set period for frequency divisor
+  pwm_set_clkdiv_int_frac(sliceNumMotorB, PWM_DIV_INTEGER, PWM_DIV_FRAC); // What frequency enters to the PWM?
+  // Set top (wrap) value (Determines the frequency)
+  pwm_set_wrap(sliceNumMotorB, PWM_TOP_VALUE);
+  // Set zero duty
+  pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
+  // Enable PWM
+  pwm_set_enabled(sliceNumMotorB, true); 
+
+  //Inicia en el estado de Reset
+  Flags.WORD = 0;
+  menu.WORD = 1;//Parte del reset
+  slice_num = pwm_gpio_to_slice_num(MEASURE_PIN);
 
 
   //Configuración de la alarma
   if(hardware_alarm_is_claimed(alarm_antena)){
-    printf("NO ES POSIBLE USAR ESTA ALARMA \n");
+    //printf("NO ES POSIBLE USAR ESTA ALARMA \n");
   }
   else{
     hardware_alarm_claim(alarm_antena);
     hardware_alarm_set_callback(alarm_antena, &alarm_duty);
-    //printf("Configurar alarma antena \n");
+    ////printf("Configurar alarma antena \n");
   }
-
+   adc_init();
+    // Make sure GPIO is high-impedance, no pullups etc
+    adc_gpio_init(ADC_MEASURE_PIN);
+    // Select ADC input 0 (GPIO26)
+    adc_select_input(0);
   //Pantalla
   char szTemp[32];
   rc = oledInit(&oled, OLED_128x64, 0x3c, 0, 0, 1, SDA_PIN, SCL_PIN, RESET_PIN, 1000000L);
-  //initUHD(&oled);
-  //printf("Va aquí \n");
-  menu.WORD = 1;//Parte del reset
-  //Flags.WORD = 1;
+  // Inicializacion de bluethoot 
+  bt_init();
+  bt_set_data(&Datos);
+
+  //Inicializacion de los datos
+  Datos.n_bat = adc_read();
+  Datos.bl_rssi[0] = 000; 
+  Datos.bl_rssi[1] = 000;
+  Datos.bl_rssi[2] = 000; 
+  Datos.bl_rssi[3] = 000;  
+  Datos.sw[0] = 0;
+  Datos.sw[1] = 0;
+  Datos.sw[2] = 0;
+  Datos.sw[3] = 0;
+
+  // obtiene la hora y la configura
+  bool check = bt_get_hour();
+  if (check)
+  {
+    bt_transmit_ok();
+  }
+  else{
+    bt_transmit_nok();
+  }
+  
+  // tramsite la inforcacion cada cierto tiempo
+  bt_transmit_alarm();
 
   while (1)
   { 
-    //printf("Va en el menú: %x, op: %x\n", menu.WORD,opcion.WORD);
-    
+
+    ////printf("Va en el menú: %x, op: %x, flags : %x\n", menu.WORD,opcion.WORD, Flags.WORD);
     switch (menu.WORD)
     {
     case 1:
       //INICIO
+      gpio_set_irq_enabled_with_callback(18, GPIO_IRQ_EDGE_RISE, true, &gpio_isr);
       initUHD(&oled, &menu, 0);//Mostrar carita
       //Llevar esto a una función
-      printf("Estado de reset\n");
+      //printf("Estado de reset\n");
       opcion.WORD = 0;
+      Flags.BITS.Reset=0;
+      //bt_transt_buff(&Datos);
       break;    
     case 2:
       /* Menu 1*/
-      //printf("------------------------ Menu 1 ------------------------\n");      
-      gpio_set_irq_enabled_with_callback(17, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-      gpio_set_irq_enabled_with_callback(18, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-      gpio_set_irq_enabled_with_callback(19, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
-      gpio_set_irq_enabled_with_callback(20, GPIO_IRQ_EDGE_RISE, true, &start_alarm);
+      ////printf("------------------------ Menu 1 ------------------------\n");      
+      gpio_set_irq_enabled(19, GPIO_IRQ_EDGE_RISE, true);
+      gpio_set_irq_enabled(20, GPIO_IRQ_EDGE_RISE, true);
+      gpio_set_irq_enabled(21, GPIO_IRQ_EDGE_RISE, true);
+      gpio_set_irq_enabled(22, GPIO_IRQ_EDGE_RISE, true);
 
       //Mostrar el menu
       Menu1(&oled);
+      Flags.BITS.Reset=0;
       break;
     case 4:
       /* Show Info*/
-      //printf("------------------------ Mostrar info ------------------------\n");
-      /*Esperar que la baliza haya llegado, la señal se da cuando la potencia de la 
-      baliza supera el umbral*/
+      ////printf("------------------------ Mostrar info ------------------------\n");
+
       switch (Flags.WORD){
+        /*----------------------------------- TRIANGULACIÓN -----------------------------------*/
         case 1:
             Reset();
             uart_puts(UART_ID, str);
@@ -283,40 +417,52 @@ int main() {
             //Pasar a .h
             pwm_init(slice_num, &cfg1, false);
             //CONFIGURACIÓN ALARMA 10MS
-            gpio_set_function(MEASURE_PIN, GPIO_FUNC_PWM);
             now = get_absolute_time();
             target = delayed_by_ms(now, COUNT_MEASURE_TIME);
             hardware_alarm_set_target(alarm_antena, target);
-            slice_num = pwm_gpio_to_slice_num(MEASURE_PIN);
             pwm_set_enabled(slice_num, true);
             break;
         case 0x10:
             Fin_Trama();
             Triangulación();
-            Move();           
+            Move();      
+            actu_data();
             break;
         default:
             break;
       }
-      //printf("El estado de la alarma de texto es: %x \n", Flags1.BITS.CONFIG_ALARM);
+      if (!Flags.BITS.Reset || !Flags.BITS.OK)
+      {
+        ////printf("Correccion...................\n");
+        Move(); 
+      }
+      
+      ////printf("El estado de la alarma de texto es: %x \n", Flags1.BITS.CONFIG_ALARM);
       //Info del lugar
       if(Flags.BITS.Llego){
         menu.BITS.Show_Info2 = 1;
-        menu.BITS.Show_Info = 0;
+        menu.BITS.Show_Info = 0; 
       }
 
       break;
+
+    case 0x24: //choque de objeto
+      Colision(&oled);
+      actu_data();
+      Move();
+    break;
+
     case 16:
           Info_Place(&opcion);
           if(count_page>3)
           {
             opcion.WORD = 0;
           }
-          printf("Va en el menú: %x \n", menu.WORD);
+          ////printf("Va en el menú: %x \n", menu.WORD);
     break;
     case 8:
       /* Final del recorrido*/
-      //printf("------------------------ Adiós ------------------------\n");
+      ////printf("------------------------ Adiós ------------------------\n");
       Despedida(&oled, count_page);
       Flags.BITS.Llego = 0;
       break;
@@ -327,7 +473,7 @@ int main() {
     }
     if (Flags1.BITS.CONFIG_ALARM)
     {
-      //printf("Cambiando de pagina\n");
+      ////printf("Cambiando de pagina\n");
       now1 = get_absolute_time();
       if(menu.BITS.Show_Info2){
         
@@ -336,8 +482,14 @@ int main() {
       }
       else if (menu.BITS.End)
       {
-  
-        target1 = delayed_by_ms(now1, TIME_FIN);
+        /*target1 = delayed_by_ms(now1, TIME_FIN);
+        hardware_alarm_set_target(alarm_text, target1);*/
+        if(count_page == 1){
+          target1 = delayed_by_ms(now1, TIME_TEXT);
+        }
+        else{
+          target1 = delayed_by_ms(now1, TIME_FIN);
+        }
         hardware_alarm_set_target(alarm_text, target1);
       }
       Flags1.BITS.CONFIG_ALARM = 0;
@@ -354,7 +506,7 @@ int main() {
 
 void Capture(){
     char c = uart_getc(UART_ID);
-    //printf("Banderas : %x", Flags.WORD);
+    ////printf("Banderas : %x", Flags.WORD);
     switch (Flags.WORD & (0x3<<1))
     {
     case 2:
@@ -364,7 +516,7 @@ void Capture(){
 
     case 4:
         // Recibiendo trama de cada una de las balizas
-        //printf("CR: %d, %c\n", CR,c);
+        ////printf("CR: %d, %c\n", CR,c);
         if(c != 0x0D && CR%10 == 3){
             // Captura y almacena el ID de la baliza
             Balizas[Baliza].BITS.NI = c;
@@ -390,23 +542,29 @@ void Capture(){
         count = 0;
         uart_puts(UART_ID, at_comand);
     }
-    if(CR%10 == 2  && Flags.BITS.Capture){
+    if(CR%10 == 6  && Flags.BITS.Capture){
         // Habilita el calculo del duty del duty 
         Flags.BITS.Capture_ADC = 1;
     }
-    count++;//printf("\n");
+    count++;////printf("\n");
 }
 
 inline void Triangulación(){
     for (uint8_t i = 0; i < sizeof(UB); i++)
     {
+      //printf("La pos actual es: %d, y la pos objetivo es: %d\n", pos_act, pos_obj);
         if((Balizas[i].BITS.RSSI) > Umbral){
-            printf("Baliza: %x \n", Balizas[i].WORD);
-            if(Balizas[i].BITS.NI>47){
-            pos_act = Balizas[i].BITS.NI;
-            printf("La pos despues de la triangulacion es: %d \n", pos_act);
-            }   
-        }
+          if(Balizas[i].BITS.NI>47){//47 se refiere al char
+            if(Balizas[i].BITS.NI == pos_cand){
+              pos_act = pos_cand; 
+            }
+            else{
+              pos_cand = Balizas[i].BITS.NI;
+            }
+              //printf("Baliza: %x \n", Balizas[i].WORD);
+            ////printf("La pos despues de la triangulacion es: %d \n", pos_act);
+          }   
+        }        
     }    
 }
 
@@ -414,30 +572,45 @@ inline void Move(){
     //Pin 10: Enable
     //Pin 11 : Salida A
     //Pin 12 : Salida B
-    printf("La pos actual y obj son: %d, %d \n", pos_act, pos_obj);
-    if (pos_act > pos_obj)
+    ////printf("La pos actual es: %d, y la pos objetivo es: %d\n", pos_act, pos_obj);
+    if (pos_act != 0)
     {
-        //pwm_set_enabled(slice_num_motor, true);
-        gpio_put_masked(mask_motor, mask_motor & (0x1 << 11));
-        printf("Ir hacia atrás \n");
-        Flags.BITS.Llego = 0;//creo que esto se puede poner al principio
+      if (pos_act > pos_obj)
+      {
+          //pwm_set_enabled(slice_num_motor, true);
+          gpio_put_masked(mask_motor & (0x5 << 11), mask_motor & (0x1 << 11));
+          ////printf("Ir hacia atrás \n");
+          Flags.BITS.Llego = 0;//creo que esto se puede poner al principio
+          Corregir_atras();
+      }
+      else if (pos_act < pos_obj)
+      {
+          gpio_put_masked(mask_motor & (0x5 << 11), mask_motor & (0x1 << 13));
+          /*gpio_put(13,true);
+          gpio_put(11, false);*/
+          ////printf("Ir hacia adelante, y el valor de los gpios son: %d, %d\n",gpio_get(11), gpio_get(13));
+          Flags.BITS.Llego = 0;
+          Corregir_adelante();
+          
+      }
+      else{
+          //pwm_set_enabled(slice_num_motor, false);
+          gpio_put_masked(mask_motor & (0x5 << 11), 0x0);
+          //printf("Se deshabilita la interrupcion \n"); 
+          Flags.BITS.Llego = 1;
+          Flags1.BITS.CONFIG_ALARM = 1;
+          Flags.BITS.Reset = 0;
+          gpio_set_irq_enabled(6, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
+          gpio_set_irq_enabled(7, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
+      } 
+      if(menu.BITS.choque){
+        gpio_put_masked(mask_motor & (0x5 << 11), 0x0);
+        //printf("Choque \n");
+      }
     }
-    else if (pos_act < pos_obj)
-    {
-        //pwm_set_enabled(slice_num_motor, true);
-        gpio_put_masked(mask_motor, mask_motor & (0x1 << 12));
-        printf("Ir hacia adelante, banderas Xbee %x, banderas OLED %x\n",Flags.WORD,menu.WORD);
-        Flags.BITS.Llego = 0;
-    }
-    else{
-        //pwm_set_enabled(slice_num_motor, false);
-        gpio_put_masked(mask_motor, 0x0);
-        printf("Quieto \n"); 
-        Flags.BITS.Llego = 1;
-        Flags1.BITS.CONFIG_ALARM = 1;
-        Flags.BITS.Reset = 0;
-    } 
+    
 }
+
 
 void Reset(){
     for (uint8_t i = 0; i < N_BALIZAS; i++)
@@ -448,23 +621,23 @@ void Reset(){
     CR = 0;
     Flags.WORD = 2;
     Baliza = 0;
-    printf("El comando ha sido enviado \n");
+    //printf("El comando ha sido enviado \n");
 }
 
 void Fin_Trama(){// Hacer aquí la triangulación
-    printf("-------------- FINALIZACION DE LA TRAMA --------------\n");
+    //printf("-------------- FINALIZACION DE LA TRAMA --------------\n");
     for (uint8_t i = 0; i < N_BALIZAS; i++)
     {
-        printf("El valor de la baliza %d es igual a %d \n", Balizas[i].BITS.NI, Balizas[i].BITS.RSSI);
+        //printf("El valor de la baliza %d es igual a %d \n", Balizas[i].BITS.NI, Balizas[i].BITS.RSSI);
     }
     Flags.WORD = 1;
 }
 void Despedida(SSOLED *oled, uint8_t count){
-  printf("El valor del contador es: %d \n" , count);
+  //printf("El valor del contador es: %d \n" , count);
   switch (count)
   {
   case 1:
-    printf("Entró");
+    //printf("Entró");
     oledFill(oled, 0,1);
     oledWriteString(oled, 0,0,1,(char *)"   ESTE ES EL", FONT_8x8, 0,1);
     oledWriteString(oled,0,0,2,(char*)  "    FIN DEL", FONT_8x8, 0,1);
@@ -544,5 +717,64 @@ void initUHD(SSOLED *oled, state_menu *menu, uint8_t count){
   
   default:
     break;
+  }
+}
+void Corregir_adelante(){
+  if(!gpio_get(6) && !gpio_get(7)){
+      ////printf("Va derecho.........\n");
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
+      band_right = false;
+      band_left = false;
+  }
+
+  else if (band_right)
+  {    
+      ////printf("Corrige derecha................. \n");
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_ZERO);
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_LEVEL);
+      band_right = false;
+  }
+  else if (band_left)
+  {
+      ////printf("Corrige izquierda................. \n");
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_ZERO);
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_LEVEL);
+
+      band_left = false;
+  }
+}
+void Corregir_atras(){
+  if(!gpio_get(6) && !gpio_get(7)){
+      ////printf("Va derecho.........\n");
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_DUTY_ZERO);
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_DUTY_ZERO);
+  }
+
+  else if (band_right)
+  {    
+      ////printf("Corrige derecha................. \n");
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_LEVEL);
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_ZERO);
+      band_right = false;
+  }
+  else if (band_left)
+  {
+      ////printf("Corrige izquierda................. \n");
+      pwm_set_chan_level(sliceNumMotorB, PWM_CHA, PWM_LEVEL);
+      pwm_set_chan_level(sliceNumMotorA, PWM_CHA, PWM_ZERO);
+
+      band_left = false;
+  }
+}
+void actu_data(){
+  uint32_t values = gpio_get_all();
+  Datos.n_bat = adc_read();
+  Datos.sw[0] = values&1;
+  Datos.sw[1] = values&(1<<1);
+  Datos.sw[2] = values&(1<<2);
+  Datos.sw[3] = values&(1<<3);
+  for(uint8_t i = 0; i<N_BALIZAS; i++){
+    Datos.bl_rssi[(Balizas[i].BITS.NI-48)]=Balizas[i].BITS.RSSI;
   }
 }

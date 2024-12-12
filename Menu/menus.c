@@ -16,7 +16,7 @@ void Menu1(SSOLED *oled){
     //sleep_ms(10000);
 }
 void Info_Senales(SSOLED *oled, uint8_t count){
-  printf("Mostrar info Senales, pag: %d\n",count);
+  //printf("Mostrar info Senales, pag: %d\n",count);
   switch (count)
   {
   case 1:
@@ -56,7 +56,7 @@ void Info_Senales(SSOLED *oled, uint8_t count){
   }
 }
 void Info_Basicos(SSOLED *oled, uint8_t count){
-  printf("Mostrar info BASICOS, pag: %d\n",count);
+  //printf("Mostrar info BASICOS, pag: %d\n",count);
   switch (count)
   {
   case 1:
@@ -98,7 +98,7 @@ void Info_Basicos(SSOLED *oled, uint8_t count){
   }
 }
 void Info_GITA(SSOLED *oled, uint8_t count){
-  printf("Mostrar info GITA, pag: %d\n",count);
+  //printf("Mostrar info GITA, pag: %d\n",count);
   switch (count)
   {
   case 1:
@@ -121,7 +121,7 @@ void Info_GITA(SSOLED *oled, uint8_t count){
   }
 }
 void Info_LED(SSOLED *oled, uint8_t count){
-  printf("Mostrar info LED, pag: %d\n",count);
+  //printf("Mostrar info LED, pag: %d\n",count);
   switch (count)
   {
   case 1:
@@ -162,4 +162,14 @@ void Info_LED(SSOLED *oled, uint8_t count){
   default:
     break;
   }
+}
+void Colision (SSOLED *oled){
+  //printf("Entró");
+  oledFill(oled, 0,1);
+  oledWriteString(oled, 0,0,1,(char *)"   QUITATE", FONT_8x8, 0,1);
+  oledWriteString(oled,0,0,2,(char*)  "   DE MI ", FONT_8x8, 0,1);
+  oledWriteString(oled,0,0,3,(char *) "   CAMINO.", FONT_8x8, 0,1);
+  oledWriteString(oled,0,0,4,(char *) "    >:-P", FONT_8x8, 0,1);
+  //oledWriteString(oled,0,0,5,(char *) "   UN PLACER", FONT_8x8, 0,1); 
+  //oledWriteString(oled,0,0,6,(char *) "  ACOMPANARTE" , FONT_8x8, 0,1);
 }
