@@ -1,5 +1,8 @@
+#include "control_BT.h"
 #include "menus.h"
 #include "PWM_measure.h"
+#include "hardware/adc.h"
+
 
 #ifndef MAIN_H_
 #define MAIN_H_
@@ -12,9 +15,11 @@ int rc;
 static uint8_t ucBuffer[1024];
 #define OLED_WIDTH 128
 #define OLED_HEIGHT 64
-#define TIME_DEBOUNCE 100
-#define TIME_TEXT     5000
+#define TIME_DEBOUNCE 200
+#define TIME_TEXT     7000
 #define TIME_FIN     1000
+
+#define ADC_MEASURE_PIN 26
 
 //Botones
 #define mask_boton 0x1F << 20 //Son 5 botones
@@ -33,7 +38,6 @@ void Info_Place(opcion_t *);
 /// ---------------- Macros ---------------- ///
 #define UART_ID uart1
 #define BAUD_RATE 4800
-#define RESET_XBEE_PIN 7
 #define UART_TX_PIN 8
 #define UART_RX_PIN 9
 #define DATA_BITS 8
@@ -50,7 +54,7 @@ void Info_Place(opcion_t *);
 #define N_CRpb N_BALIZAS*10
 #define N_OK 2
 
-#define MEASURE_PIN 3>
+#define MEASURE_PIN 15
 #define COUNT_MEASURE_TIME 10
 
 //Motor
@@ -59,9 +63,13 @@ void Info_Place(opcion_t *);
 #define PWM_DIV_INTEGER     128
 #define PWM_DIV_FRAC        0
 #define PWM_TOP_VALUE       4095
-#define PWM_DUTY_ZERO       2000
+#define PWM_DUTY_ZERO       1000
+#define PWM_ZERO 0
+#define PWM_LEVEL 3500
+#define PIN_PWM_ENABLEA 12
+#define PIN_PWM_ENABLEB 10
 
-#define Umbral 990U
+#define Umbral 900U
 
 /// ---------------- Variables ---------------- ///
 //BUFFERS
@@ -109,9 +117,9 @@ char response[3];
 
 // TRIANGULACIÓN
 uint8_t state = 0;
-uint8_t pos_act = '0', pos_obj = '1';
+uint8_t pos_act = 0, pos_obj = '1';
 
-char UB[4] = {'0', '1', '2','3'};; //Ubicación de las balizas 
+char UB[4] = {'0', '1', '2','3'}; //Ubicación de las balizas 
 
 pwm_config cfg1, cfg2;
 
@@ -121,4 +129,8 @@ void Reset();
 void Fin_Trama();
 void Triangulación();
 void Move();
+void Corregir_adelante();
+void Corregir_atras();
+void actu_data();
+
 #endif

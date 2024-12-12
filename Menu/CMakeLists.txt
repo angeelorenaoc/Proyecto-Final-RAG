@@ -37,7 +37,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico_w CACHE STRING "Board type")
+set(PICO_BOARD pico CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -55,6 +55,7 @@ add_executable(
         BitBang_I2C.c
         menus.c
         PWM_measure.c
+        control_BT.c
 )
 
 # pull in common dependencies and additional i2c hardware support
@@ -65,7 +66,9 @@ target_link_libraries(  MENU
                         hardware_timer 
                         hardware_sync 
                         hardware_pwm
-                        hardware_irq)
+                        hardware_irq
+                        hardware_adc
+                        hardware_rtc)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(MENU)

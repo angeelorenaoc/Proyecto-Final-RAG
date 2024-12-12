@@ -25,6 +25,7 @@ typedef union{
         uint8_t Show_Info :1;  //Muestra info del lugar
         uint8_t End       :1;  //Despedida 
         uint8_t Show_Info2:1;
+        uint8_t choque    :1;
     }BITS;      
 }state_menu;
 
@@ -56,4 +57,5 @@ void Info_Basicos(SSOLED *, uint8_t);
 void Info_GITA(SSOLED *, uint8_t);
 void Info_LED(SSOLED *, uint8_t);
 void Despedida(SSOLED *, uint8_t);
+void Colision(SSOLED *oled);
 #endif
