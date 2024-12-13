@@ -10,21 +10,20 @@
 #include "hardware/sync.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
-
-//Imagenes 
 #include "Gestos.h"
 
 #ifndef MENUS_H_
 #define MENUDS_H_
 
+
 typedef union{
     uint8_t WORD;
     struct{
         uint8_t Reset     :1;    // Estado de reset
-        uint8_t Menu1     :1; //Muestra las opciones de los lugares, solo se habilitan las interrupciones en este punto
-        uint8_t Show_Info :1;  //Muestra info del lugar
-        uint8_t End       :1;  //Despedida 
-        uint8_t Show_Info2:1;
+        uint8_t Menu1     :1;    //Muestra las opciones de los lugares, solo se habilitan las interrupciones en este punto
+        uint8_t Triangular :1;    //Triangulación
+        uint8_t End       :1;    //Despedida 
+        uint8_t Show_Info2:1;    // Muestra info del lugar
         uint8_t choque    :1;
     }BITS;      
 }state_menu;
@@ -41,7 +40,7 @@ typedef union
     }BITS;
 }opcion_t;
 
-//Estructura para las opciones del menu1
+//Estructura para configurar la alarma
 typedef union
 {
     uint8_t WORD;
@@ -57,5 +56,4 @@ void Info_Basicos(SSOLED *, uint8_t);
 void Info_GITA(SSOLED *, uint8_t);
 void Info_LED(SSOLED *, uint8_t);
 void Despedida(SSOLED *, uint8_t);
-void Colision(SSOLED *oled);
 #endif

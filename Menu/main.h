@@ -6,23 +6,24 @@
 
 #ifndef MAIN_H_
 #define MAIN_H_
-//Macros
+//Pines de pantalla 
 #define SDA_PIN 4
 #define SCL_PIN 5
 #define RESET_PIN -1
-int rc;
-
-static uint8_t ucBuffer[1024];
 #define OLED_WIDTH 128
 #define OLED_HEIGHT 64
 #define TIME_DEBOUNCE 200
 #define TIME_TEXT     7000
 #define TIME_FIN     1000
 
+//Medir batería 
 #define ADC_MEASURE_PIN 26
 
 //Botones
-#define mask_boton 0x1F << 20 //Son 5 botones
+#define mask_boton 0x1F << 20
+
+int rc;
+static uint8_t ucBuffer[1024];
 state_menu menu;
 opcion_t  opcion;
 flags_t   Flags1;
@@ -34,7 +35,6 @@ SSOLED oled;
 void initUHD(SSOLED *, state_menu *, uint8_t);
 void Info_Place(opcion_t *);
 
-/*------------------ DMA_CONTROL ----------------------*/
 /// ---------------- Macros ---------------- ///
 #define UART_ID uart1
 #define BAUD_RATE 4800
@@ -63,18 +63,18 @@ void Info_Place(opcion_t *);
 #define PWM_DIV_INTEGER     128
 #define PWM_DIV_FRAC        0
 #define PWM_TOP_VALUE       4095
-#define PWM_DUTY_ZERO       1000
+#define PWM_DUTY_ZERO       1400
 #define PWM_ZERO 0
 #define PWM_LEVEL 3500
 #define PIN_PWM_ENABLEA 12
 #define PIN_PWM_ENABLEB 10
 
-#define Umbral 900U
+#define Umbral 820U
 
 /// ---------------- Variables ---------------- ///
 //BUFFERS
-char BOK[N_OK]; // Buffer para recibir los OK del comando AT
-uint8_t count = 0; // Contador que indica el número de bytes recibidos mediante el UART.
+char BOK[N_OK];     // Buffer para recibir los OK del comando AT
+uint8_t count = 0;  // Contador que indica el número de bytes recibidos mediante el UART.
 uint8_t Baliza = 0;
 uint8_t CR = 0;
 
@@ -90,12 +90,12 @@ const uint8_t at_comand[5] = {0x41, 0x54, 0x4E, 0x44, 0x0D};
 typedef union{
     uint8_t WORD;
     struct{
-        uint8_t Reset:        1; // Estado de reset1
-        uint8_t OK :          1; // Recibe los OK2
-        uint8_t Capture :     1; //Captura la trama4
-        uint8_t Capture_ADC : 1; //Captura valor del ADC8
-        uint8_t EndMsg      : 1; // Bandera de finalización de trama16
-        uint8_t Llego       : 1; //Indica cuando llega a la pos objetivo
+        uint8_t Reset:        1;  // Estado de reset1
+        uint8_t OK :          1;  // Recibe los OK2
+        uint8_t Capture :     1;  //Captura la trama4
+        uint8_t Capture_ADC : 1;  //Captura valor del ADC8
+        uint8_t EndMsg      : 1;  // Bandera de finalización de trama16
+        uint8_t Llego       : 1;  //Indica cuando llega a la pos objetivo
     }BITS;    
 }state_flags;
 
